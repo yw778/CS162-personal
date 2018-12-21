@@ -8,8 +8,8 @@ typedef unsigned long long wc_count_t;
 wc_count_t tot_line_cnt, tot_word_cnt, tot_char_cnt;
 
 
-void wc(char *);
-void print_wc(wc_count_t, wc_count_t, wc_count_t, char *);
+void wc(char*);
+void print_wc(wc_count_t, wc_count_t, wc_count_t, char*);
 
 int main(int argc, char *argv[]) {
     if (argc == 1) {
@@ -17,11 +17,10 @@ int main(int argc, char *argv[]) {
     } else {
         int tmp = argc;
         while(argc > 1) {
-            wc(*argv);
-            argv++;
+            wc(*++argv);
             argc--;
         }
-        if (tmp > 1) {
+        if (tmp > 2) {
             print_wc(tot_line_cnt, tot_word_cnt, tot_char_cnt, "total");
         }
     }
@@ -53,9 +52,10 @@ void wc (char* filename) {
             if (ch == '\n') {
                 line_cnt++;
             }
+            space = 1;
         } else {
             if (space) {
-                space= 0;
+                space = 0;
                 word_cnt++;
             }
         }
