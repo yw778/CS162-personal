@@ -11,11 +11,11 @@ EXECUTABLE=main
 all: $(SOURCES) $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS)
-    $(CC) $(LDFLAGS) $(OBJECTS) -o $@
+	$(CC) $(LDFLAGS) $(OBJECTS) -o $@
 
 %.o: %.cpp
-    $(CC) $(CFLAGS) $< -o $@
+	$(CC) $(CFLAGS) $< -o $@
 
 clean:
-    rm -f $(EXECUTABLE) $(OBJECTS)
-    echo "clean done"
+	rm -f $(EXECUTABLE) $(OBJECTS)
+	echo "clean done"
