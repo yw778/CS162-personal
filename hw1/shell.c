@@ -136,8 +136,24 @@ int main(unused int argc, unused char *argv[]) {
       cmd_table[fundex].fun(tokens);
     } else {
       /* REPLACE this to run commands as programs. */
-      fprintf(stdout, "This shell doesn't know how to run programs.\n");
+      pid_t child = fork();
+      if (child > 0) {
+        int status;
+        wait(&status);
+      } else if (child == 0) {
+        size_t len = tokens_get_length(tokens);
+        char* args[len + 1];
+        for (size_t i = 0; i < len; ++i) {
+          args[i] = tokens_get_token(tokens, i);
+        }
+        args[len] = NULL;
+        execv(tokens_get_token(tokens, 0), args);
+      } else if (child < 0) {
+        perror("fork error");
+        return 1;
+      }
     }
+
 
     if (shell_is_interactive)
       /* Please only print shell prompts when standard input is not a tty */
