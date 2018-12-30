@@ -27,6 +27,8 @@ struct termios shell_tmodes;
 /* Process group id for the shell */
 pid_t shell_pgid;
 
+int cmd_cd(struct tokens *tokens);
+int cmd_pwd(struct tokens *tokens);
 int cmd_exit(struct tokens *tokens);
 int cmd_help(struct tokens *tokens);
 
@@ -43,7 +45,29 @@ typedef struct fun_desc {
 fun_desc_t cmd_table[] = {
   {cmd_help, "?", "show this help menu"},
   {cmd_exit, "exit", "exit the command shell"},
+  {cmd_cd, "cd", "change the directory"},
+  {cmd_pwd, "pwd", "show the current directory"},
 };
+
+
+/* Print the current directory. */
+int cmd_pwd(unused struct tokens *tokens) {
+  char buff[1024];
+  if (getcwd(buff, sizeof(buff)) != NULL) {
+    printf("%s\n", buff);
+  } else {
+    perror("cmd_pwd error");
+  }
+  return 1;
+}
+
+/* Change the current directory */
+int cmd_cd(unused struct tokens *tokens) {
+  if (chdir(tokens_get_token(tokens, 1)) == -1) {
+    perror("cmd_cd error");
+  }
+  return 1;
+}
 
 /* Prints a helpful description for the given command */
 int cmd_help(unused struct tokens *tokens) {
