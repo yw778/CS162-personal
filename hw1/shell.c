@@ -142,16 +142,31 @@ int main(unused int argc, unused char *argv[]) {
         wait(&status);
       } else if (child == 0) {
         size_t len = tokens_get_length(tokens);
-        char* args[len + 1];
+        char *args[len + 1];
         for (size_t i = 0; i < len; ++i) {
           args[i] = tokens_get_token(tokens, i);
         }
         args[len] = NULL;
-        execv(tokens_get_token(tokens, 0), args);
+        // Add support for path resolution.
+        if (execv(tokens_get_token(tokens, 0), args) == -1) {
+          char *variable_path = getenv("PATH");
+          char *token_path = strtok(variable_path, ":");
+          char path[1024];
+          while (token_path) {
+            strcpy(path, token_path);
+            strcat(path, "/");
+            strcat(path, tokens_get_token(tokens, 0));
+            if (execv(path, args) == -1) {
+              token_path = strtok(NULL, ":");
+            } else {
+              break;
+            }
+          }
+        }
       } else if (child < 0) {
-        perror("fork error");
-        return 1;
-      }
+          perror("fork error");
+          return 1;
+        }
     }
 
 
