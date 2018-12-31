@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "tokenizer.h"
 
@@ -142,11 +143,33 @@ int main(unused int argc, unused char *argv[]) {
         wait(&status);
       } else if (child == 0) {
         size_t len = tokens_get_length(tokens);
+        int redir = 1;
+        if (len > 2) {
+          if (strcmp(">", tokens_get_token(tokens, len - 2)) == 0) {
+            int file_des = open(tokens_get_token(tokens, len - 1), O_RDWR | O_CREAT, S_IRWXU);
+            dup2(file_des, 1);
+            close(file_des);
+            redir = 1;
+          } else if (strcmp("<", tokens_get_token(tokens, len - 2)) == 0) {
+            int file_des = open(tokens_get_token(tokens, len - 1), O_RDWR | O_CREAT, S_IRWXU);
+            dup2(file_des, 0);
+            close(file_des);
+            redir = 1;
+          } else {
+            redir = 0;
+          }
+        } else {
+          redir = 0;
+        }
+        if (redir) {
+          len = len - 2;
+        }
         char *args[len + 1];
         for (size_t i = 0; i < len; ++i) {
           args[i] = tokens_get_token(tokens, i);
         }
         args[len] = NULL;
+
         // Add support for path resolution.
         if (execv(tokens_get_token(tokens, 0), args) == -1) {
           char *variable_path = getenv("PATH");
@@ -166,7 +189,7 @@ int main(unused int argc, unused char *argv[]) {
       } else if (child < 0) {
           perror("fork error");
           return 1;
-        }
+      }
     }
 
 
