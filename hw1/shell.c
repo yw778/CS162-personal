@@ -261,6 +261,10 @@ int main(unused int argc, unused char *argv[]) {
     signal(SIGCONT,SIG_DFL);
     signal(SIGKILL,SIG_DFL);
 
+    fflush(stdout);
+    fflush(stderr);
+    fflush(stdin);
+//    shell_is_interactive = isatty(shell_terminal);
     if (shell_is_interactive)
       /* Please only print shell prompts when standard input is not a tty */
       fprintf(stdout, "%d: ", ++line_num);
