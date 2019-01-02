@@ -133,15 +133,42 @@ int main(unused int argc, unused char *argv[]) {
     /* Find which built-in function to run. */
     int fundex = lookup(tokens_get_token(tokens, 0));
 
+    // Ignore all signals here for the background process.
+    signal(SIGINT,SIG_IGN);
+    signal(SIGQUIT,SIG_IGN);
+    signal(SIGTSTP,SIG_IGN);
+    signal(SIGTTIN,SIG_IGN);
+    signal(SIGTTOU,SIG_IGN);
+    signal(SIGCHLD,SIG_IGN);
+    signal(SIGCONT,SIG_IGN);
+    signal(SIGKILL,SIG_IGN);
+
     if (fundex >= 0) {
       cmd_table[fundex].fun(tokens);
     } else {
       /* REPLACE this to run commands as programs. */
       pid_t child = fork();
       if (child > 0) {
+        // In the parent process.
         int status;
         wait(&status);
       } else if (child == 0) {
+        // In the child process.
+        pid_t cpid = getpid();
+        // Ensure that each program you start is in its own process group.
+        setpgid(0, cpid);
+        // Its process group should be placed in the foreground.
+        tcsetpgrp(shell_terminal, cpid);
+        // Catch all signals.
+        signal(SIGINT,SIG_DFL);
+        signal(SIGQUIT,SIG_DFL);
+        signal(SIGTSTP,SIG_DFL);
+        signal(SIGTTIN,SIG_DFL);
+        signal(SIGTTOU,SIG_DFL);
+        signal(SIGCHLD,SIG_DFL);
+        signal(SIGCONT,SIG_DFL);
+        signal(SIGKILL,SIG_DFL);
+        printf("the foregound process is child %d\n", cpid);
         size_t len = tokens_get_length(tokens);
         int redir = 1;
         if (len > 2) {
@@ -191,7 +218,17 @@ int main(unused int argc, unused char *argv[]) {
           return 1;
       }
     }
-
+    // Restore the shell to the foreground.
+    tcsetpgrp(shell_terminal, getpid());
+    // Restore the shell to handle the signal.
+    signal(SIGINT,SIG_DFL);
+    signal(SIGQUIT,SIG_DFL);
+    signal(SIGTSTP,SIG_DFL);
+    signal(SIGTTIN,SIG_DFL);
+    signal(SIGTTOU,SIG_DFL);
+    signal(SIGCHLD,SIG_DFL);
+    signal(SIGCONT,SIG_DFL);
+    signal(SIGKILL,SIG_DFL);
 
     if (shell_is_interactive)
       /* Please only print shell prompts when standard input is not a tty */
