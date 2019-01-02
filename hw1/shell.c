@@ -28,6 +28,10 @@ struct termios shell_tmodes;
 /* Process group id for the shell */
 pid_t shell_pgid;
 
+/* Count for the backGround process */
+int background_process_count = 0;
+
+int cmd_wait(struct tokens *tokens);
 int cmd_cd(struct tokens *tokens);
 int cmd_pwd(struct tokens *tokens);
 int cmd_exit(struct tokens *tokens);
@@ -48,8 +52,18 @@ fun_desc_t cmd_table[] = {
   {cmd_exit, "exit", "exit the command shell"},
   {cmd_cd, "cd", "change the directory"},
   {cmd_pwd, "pwd", "show the current directory"},
+  {cmd_wait, "wait", "waits until all background jobs have terminated before returning to the prompt"},
 };
 
+/* Wait until all background jobs have terminated. */
+int cmd_wait(unused struct tokens *tokens) {
+    for (size_t i = 0; i < background_process_count; ++i) {
+        waitpid(-1, NULL, 0);
+    }
+    background_process_count = 0;
+    printf("Finish wait.\n");
+    return 1;
+}
 
 /* Print the current directory. */
 int cmd_pwd(unused struct tokens *tokens) {
@@ -133,6 +147,15 @@ int main(unused int argc, unused char *argv[]) {
     /* Find which built-in function to run. */
     int fundex = lookup(tokens_get_token(tokens, 0));
 
+    int background = 0;
+
+    if (tokens_get_length(tokens) > 1) {
+        if (strcmp("&", tokens_get_token(tokens, tokens_get_length(tokens) - 1)) == 0) {
+            background = 1;
+            background_process_count++;
+        }
+    }
+
     // Ignore all signals here for the background process.
     signal(SIGINT,SIG_IGN);
     signal(SIGQUIT,SIG_IGN);
@@ -151,14 +174,18 @@ int main(unused int argc, unused char *argv[]) {
       if (child > 0) {
         // In the parent process.
         int status;
-        wait(&status);
+        if (!background) {
+            wait(&status);
+        }
       } else if (child == 0) {
         // In the child process.
         pid_t cpid = getpid();
         // Ensure that each program you start is in its own process group.
         setpgid(0, cpid);
         // Its process group should be placed in the foreground.
-        tcsetpgrp(shell_terminal, cpid);
+        if (!background) {
+            tcsetpgrp(shell_terminal, cpid);
+        }
         // Catch all signals.
         signal(SIGINT,SIG_DFL);
         signal(SIGQUIT,SIG_DFL);
@@ -168,7 +195,6 @@ int main(unused int argc, unused char *argv[]) {
         signal(SIGCHLD,SIG_DFL);
         signal(SIGCONT,SIG_DFL);
         signal(SIGKILL,SIG_DFL);
-        printf("the foregound process is child %d\n", cpid);
         size_t len = tokens_get_length(tokens);
         int redir = 1;
         if (len > 2) {
@@ -188,9 +214,14 @@ int main(unused int argc, unused char *argv[]) {
         } else {
           redir = 0;
         }
-        if (redir) {
-          len = len - 2;
+        int len_minus = 0;
+        if (background) {
+            len_minus = 1;
         }
+        if (redir) {
+            len_minus = 2;
+        }
+        len -= len_minus;
         char *args[len + 1];
         for (size_t i = 0; i < len; ++i) {
           args[i] = tokens_get_token(tokens, i);
@@ -219,7 +250,7 @@ int main(unused int argc, unused char *argv[]) {
       }
     }
     // Restore the shell to the foreground.
-    tcsetpgrp(shell_terminal, getpid());
+    tcsetpgrp(shell_terminal, shell_pgid);
     // Restore the shell to handle the signal.
     signal(SIGINT,SIG_DFL);
     signal(SIGQUIT,SIG_DFL);
