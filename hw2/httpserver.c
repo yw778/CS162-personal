@@ -18,6 +18,8 @@
 #include "libhttp.h"
 #include "wq.h"
 
+#define BUFFER_SIZE 1024
+
 /*
  * Global configuration variables.
  * You need to use these in your implementation of handle_files_request and
@@ -30,6 +32,72 @@ int server_port;
 char *server_files_directory;
 char *server_proxy_hostname;
 int server_proxy_port;
+
+void not_found_res(int fd) {
+    http_start_response(fd, 404);
+    http_send_header(fd, "Content-Type", "text/html");
+    http_send_header(fd, "Server", "httpserver/1.0");
+    http_end_headers(fd);
+    http_send_string(fd,
+                     "<center>"
+                     "<h1>File Not Found</h1>"
+                     "</center>");
+}
+
+void not_found_index_file(int fd) {
+    http_start_response(fd, 404);
+    http_send_header(fd, "Content-Type", "text/html");
+    http_send_header(fd, "Server", "httpserver/1.0");
+    http_end_headers(fd);
+    http_send_string(fd,
+                     "<center>"
+                     "<h1>Not Found Index.html in the Directory</h1>"
+                     "</center>");
+}
+
+void internal_error_res(int fd) {
+    http_start_response(fd, 500);
+    http_send_header(fd, "Content-Type", "text/html");
+    http_send_header(fd, "Server", "httpserver/1.0");
+    http_end_headers(fd);
+    http_send_string(fd,
+                     "<center>"
+                     "<h1>Internal Error</h1>"
+                     "</center>");
+}
+
+void response_file(int fd, char* file_path) {
+    char file_buffer[BUFFER_SIZE];
+    char file_size_str[BUFFER_SIZE];
+    int file_size;
+
+    memset(file_buffer, '\0', BUFFER_SIZE);
+    memset(file_size_str, '\0', BUFFER_SIZE);
+
+    FILE* fp = fopen(file_path, "r");
+
+    if (!fp) {
+        return not_found_res(fd);
+    }
+
+    fseek(fp, 0, SEEK_END);
+    file_size = ftell(fp);
+    rewind(fp);
+    sprintf(file_size_str, "%d", file_size);
+
+    http_start_response(fd, 200);
+    http_send_header(fd, "Content-Type", http_get_mime_type(file_path));
+    // Todo: whether need content-length?
+    http_send_header(fd, "Content-Length", file_size_str);
+    http_send_header(fd, "Server", "httpserver/1.0");
+    http_end_headers(fd);
+    while(!feof(fp)) {
+        memset(file_buffer, '\0', BUFFER_SIZE);
+        fread(file_buffer, 1, BUFFER_SIZE, fp);
+        http_send_string(fd, file_buffer);
+    }
+    close(fd);
+}
 
 
 /*
@@ -52,15 +120,31 @@ void handle_files_request(int fd) {
 
   struct http_request *request = http_request_parse(fd);
 
-  http_start_response(fd, 200);
-  http_send_header(fd, "Content-Type", "text/html");
-  http_end_headers(fd);
-  http_send_string(fd,
-      "<center>"
-      "<h1>Welcome to httpserver!</h1>"
-      "<hr>"
-      "<p>Nothing's here yet.</p>"
-      "</center>");
+  if (request == NULL) {
+    return internal_error_res(fd);
+  }
+
+  char file_path[BUFFER_SIZE];
+  // Todo: How is files/ parsed?.
+  memset(file_path, '\0', BUFFER_SIZE);
+  strcpy(file_path, server_files_directory);
+  strcat(file_path, request->path);
+  printf("file path is %s \n", file_path);
+
+  struct stat path_stat;
+  stat(file_path, &path_stat);
+  if (S_ISREG(path_stat.st_mode)) {
+    return response_file(fd, file_path);
+  } else if (S_ISDIR(path_stat.st_mode)) {
+    // Default return index.html as all http servers.
+    int len = strlen(file_path);
+    if (file_path[len - 1] != '/') {
+        strcat(file_path, "/");
+    }
+    strcat(file_path, "index.html");
+    return response_file(fd, file_path);
+  }
+  return not_found_res(fd);
 }
 
 
