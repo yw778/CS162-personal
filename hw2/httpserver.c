@@ -255,10 +255,6 @@ void* worker(void* arg) {
     void (*request_handler)(int) = arg;
     pthread_mutex_lock(&work_queue.lock);
     while(1) {
-//        if (work_queue.shutdown) {
-//            pthread_mutex_unlock(&work_queue.lock);
-//            break;
-//        }
         while(work_queue.size == 0) {
             pthread_cond_wait(&work_queue.cond, &work_queue.lock);
         }
@@ -268,7 +264,6 @@ void* worker(void* arg) {
         close(fd);
     }
     return NULL;
-//    pthread_mutex_unlock(&work_queue.lock);
 
 }
 
