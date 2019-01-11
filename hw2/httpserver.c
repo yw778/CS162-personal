@@ -40,7 +40,7 @@ void not_found_res(int fd) {
     http_end_headers(fd);
     http_send_string(fd,
                      "<center>"
-                     "<h1>File Not Found</h1>"
+                     "<h1>File or Directory Not Found</h1>"
                      "</center>");
 }
 
@@ -86,9 +86,10 @@ void response_file(int fd, char* file_path) {
     sprintf(file_size_str, "%d", file_size);
 
     http_start_response(fd, 200);
+    printf("%s\n", http_get_mime_type(file_path));
     http_send_header(fd, "Content-Type", http_get_mime_type(file_path));
     // Todo: whether need content-length?
-    http_send_header(fd, "Content-Length", file_size_str);
+//    http_send_header(fd, "Content-Length", file_size_str);
     http_send_header(fd, "Server", "httpserver/1.0");
     http_end_headers(fd);
     while(!feof(fp)) {
@@ -97,6 +98,34 @@ void response_file(int fd, char* file_path) {
         http_send_string(fd, file_buffer);
     }
     close(fd);
+}
+
+void list_response(int fd, char* dir_path, char* request_path) {
+    DIR* dp;
+    struct dirent *ep;
+    char res_buff[BUFFER_SIZE];
+    memset(res_buff, '\0', BUFFER_SIZE);
+    if ((dp = opendir(dir_path)) == NULL) {
+        return not_found_res(fd);
+    }
+    strcpy(res_buff, "<html><body><ul>");
+    while((ep = readdir(dp)) != NULL) {
+        char link_buffer[BUFFER_SIZE];
+        char html_buffer[BUFFER_SIZE];
+        memset(link_buffer, '\0', BUFFER_SIZE);
+        memset(html_buffer, '\0', BUFFER_SIZE);
+        strcpy(link_buffer, request_path);
+        strcat(link_buffer, ep->d_name);
+        sprintf(html_buffer, "<li><a href=\"%s\">%s</a></li>", link_buffer, ep->d_name);
+        strcat(res_buff, html_buffer);
+    }
+    strcat(res_buff, "</ul></body></html>");
+
+    http_start_response(fd, 200);
+    http_send_header(fd, "Content-Type", "text/html");
+    http_send_header(fd, "Server", "httpserver/1.0");
+    http_end_headers(fd);
+    http_send_string(fd, res_buff);
 }
 
 
@@ -132,16 +161,32 @@ void handle_files_request(int fd) {
   printf("file path is %s \n", file_path);
 
   struct stat path_stat;
-  stat(file_path, &path_stat);
+  int status;
+  if ((status = stat(file_path, &path_stat)) == -1) {
+      return not_found_res(fd);
+  }
   if (S_ISREG(path_stat.st_mode)) {
     return response_file(fd, file_path);
   } else if (S_ISDIR(path_stat.st_mode)) {
     // Default return index.html as all http servers.
+    char dir_path[BUFFER_SIZE];
     int len = strlen(file_path);
     if (file_path[len - 1] != '/') {
-        strcat(file_path, "/");
+      strcat(file_path, "/");
     }
+    strcpy(dir_path, file_path);
     strcat(file_path, "index.html");
+    FILE* fp = fopen(file_path, "r");
+
+    if (!fp) {
+      char request_path[BUFFER_SIZE];
+      strcpy(request_path, request->path);
+      int len = strlen(request_path);
+      if (request_path[len - 1] != '/') {
+        strcat(request_path, "/");
+      }
+      return list_response(fd, dir_path, request_path);
+    }
     return response_file(fd, file_path);
   }
   return not_found_res(fd);
