@@ -133,14 +133,15 @@ void list_response(int fd, char* dir_path, char* request_path) {
 }
 
 void* proxy_child_worker(void *arg) {
+    printf("Served by proxy child thread_id %i\n", (unsigned int)(pthread_self() % 100));
     arg_t* pair = (arg_t*) arg;
     char buffer[BUFFER_SIZE];
     int size;
     while((size = read(pair->from, buffer, BUFFER_SIZE)) > 0) {
         write(pair->to, buffer, size);
+        printf("from %d to %d: %d bytes \n", pair->from, pair->to, size);
     }
-    close(pair->from);
-    close(pair->to);
+    printf("thread_id %i finish\n", (unsigned int)(pthread_self() % 100));
     return NULL;
 }
 
@@ -264,16 +265,13 @@ void handle_proxy_request(int fd) {
 
   pthread_t proxy_client;
   pthread_t proxy_server;
-  pthread_create(&proxy_client, NULL, proxy_child_worker, &(arg_t) {
-      .from = fd,
-      .to = client_socket_fd
-  });
-  pthread_create(&proxy_server, NULL, proxy_child_worker, &(arg_t) {
-      .from = client_socket_fd,
-      .to = fd
-  });
+  pthread_create(&proxy_client, NULL, proxy_child_worker, &(arg_t) {.from = fd, .to = client_socket_fd});
+  pthread_create(&proxy_server, NULL, proxy_child_worker, &(arg_t) {.from = client_socket_fd, .to = fd});
   pthread_join(proxy_client, NULL);
   pthread_join(proxy_server, NULL);
+  printf("Finish for one connection \n");
+  close(fd);
+  close(client_socket_fd);
   /* 
   * TODO: Your solution for task 3 belongs here! 
   */
@@ -286,7 +284,7 @@ void* worker(void* arg) {
         while(work_queue.size == 0) {
             pthread_cond_wait(&work_queue.cond, &work_queue.lock);
         }
-        printf("served by thread_id %i", (unsigned int)(pthread_self() % 100));
+        printf("Served by thread_id %i \n", (unsigned int)(pthread_self() % 100));
         int fd = wq_pop(&work_queue);
         request_handler(fd);
         close(fd);
