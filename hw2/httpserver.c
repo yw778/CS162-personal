@@ -251,10 +251,35 @@ void handle_proxy_request(int fd) {
 }
 
 
+void* worker(void* arg) {
+    void (*request_handler)(int) = arg;
+    pthread_mutex_lock(&work_queue.lock);
+    while(1) {
+//        if (work_queue.shutdown) {
+//            pthread_mutex_unlock(&work_queue.lock);
+//            break;
+//        }
+        while(work_queue.size == 0) {
+            pthread_cond_wait(&work_queue.cond, &work_queue.lock);
+        }
+        printf("served by thread_id %i", (unsigned int)(pthread_self() % 100));
+        int fd = wq_pop(&work_queue);
+        request_handler(fd);
+        close(fd);
+    }
+    return NULL;
+//    pthread_mutex_unlock(&work_queue.lock);
+
+}
+
 void init_thread_pool(int num_threads, void (*request_handler)(int)) {
   /*
    * TODO: Part of your solution for Task 2 goes here!
    */
+  for (size_t i = 0; i < num_threads; ++i) {
+      pthread_t* ptr = malloc(sizeof(pthread_t));
+      pthread_create(ptr, NULL, worker, request_handler);
+  }
 }
 
 /*
@@ -314,15 +339,16 @@ void serve_forever(int *socket_number, void (*request_handler)(int)) {
         inet_ntoa(client_address.sin_addr),
         client_address.sin_port);
 
-    // TODO: Change me?
-    request_handler(client_socket_number);
-    close(client_socket_number);
-
-    printf("Accepted connection from %s on port %d\n",
-        inet_ntoa(client_address.sin_addr),
-        client_address.sin_port);
+    if (num_threads == 0) {
+        request_handler(client_socket_number);
+        close(client_socket_number);
+    } else {
+        pthread_mutex_lock(&work_queue.lock);
+        wq_push(&work_queue, client_socket_number);
+        pthread_cond_signal(&work_queue.cond);
+        pthread_mutex_unlock(&work_queue.lock);
+    }
   }
-
   shutdown(*socket_number, SHUT_RDWR);
   close(*socket_number);
 }
