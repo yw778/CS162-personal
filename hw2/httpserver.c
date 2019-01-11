@@ -33,6 +33,11 @@ char *server_files_directory;
 char *server_proxy_hostname;
 int server_proxy_port;
 
+typedef struct arg_pair {
+    int from;
+    int to;
+} arg_t;
+
 void not_found_res(int fd) {
     http_start_response(fd, 404);
     http_send_header(fd, "Content-Type", "text/html");
@@ -125,6 +130,18 @@ void list_response(int fd, char* dir_path, char* request_path) {
     http_send_header(fd, "Server", "httpserver/1.0");
     http_end_headers(fd);
     http_send_string(fd, res_buff);
+}
+
+void* proxy_child_worker(void *arg) {
+    arg_t* pair = (arg_t*) arg;
+    char buffer[BUFFER_SIZE];
+    int size;
+    while((size = read(pair->from, buffer, BUFFER_SIZE)) > 0) {
+        write(pair->to, buffer, size);
+    }
+    close(pair->from);
+    close(pair->to);
+    return NULL;
 }
 
 
@@ -245,11 +262,22 @@ void handle_proxy_request(int fd) {
 
   }
 
+  pthread_t proxy_client;
+  pthread_t proxy_server;
+  pthread_create(&proxy_client, NULL, proxy_child_worker, &(arg_t) {
+      .from = fd,
+      .to = client_socket_fd
+  });
+  pthread_create(&proxy_server, NULL, proxy_child_worker, &(arg_t) {
+      .from = client_socket_fd,
+      .to = fd
+  });
+  pthread_join(proxy_client, NULL);
+  pthread_join(proxy_server, NULL);
   /* 
   * TODO: Your solution for task 3 belongs here! 
   */
 }
-
 
 void* worker(void* arg) {
     void (*request_handler)(int) = arg;
@@ -426,6 +454,13 @@ int main(int argc, char **argv) {
                     "                      \"--proxy [HOSTNAME:PORT]\"\n");
     exit_with_usage();
   }
+
+  if (server_proxy_hostname) {
+      // We use three thread to serve one connection.
+      num_threads /= 3;
+  }
+
+  printf("Thread number is %d \n", num_threads);
 
   serve_forever(&server_fd, request_handler);
 
