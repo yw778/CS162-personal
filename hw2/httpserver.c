@@ -88,8 +88,7 @@ void response_file(int fd, char* file_path) {
     http_start_response(fd, 200);
     printf("%s\n", http_get_mime_type(file_path));
     http_send_header(fd, "Content-Type", http_get_mime_type(file_path));
-    // Todo: whether need content-length?
-//    http_send_header(fd, "Content-Length", file_size_str);
+    http_send_header(fd, "Content-Length", file_size_str);
     http_send_header(fd, "Server", "httpserver/1.0");
     http_end_headers(fd);
     while(!feof(fp)) {
@@ -154,7 +153,6 @@ void handle_files_request(int fd) {
   }
 
   char file_path[BUFFER_SIZE];
-  // Todo: How is files/ parsed?.
   memset(file_path, '\0', BUFFER_SIZE);
   strcpy(file_path, server_files_directory);
   strcat(file_path, request->path);
