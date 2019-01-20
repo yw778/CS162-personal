@@ -8,13 +8,13 @@
 
 #include <stdlib.h>
 
-struct block {
+typedef struct block {
     int size;
     int free;
-    struct block *pre;
     struct block *next;
+    struct block *pre;
     char pointer[0];
-};
+} block_t;
 
 void *mm_malloc(size_t size);
 void *mm_realloc(void *ptr, size_t size);
