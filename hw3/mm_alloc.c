@@ -50,8 +50,8 @@ void *mm_malloc(size_t size) {
                     return tmp->pointer;
                 } else {
                     tmp->free = 0;
-                    tmp->size = size;
-                    memset(tmp->pointer, 0, size) + size;
+//                    tmp->size = size;
+                    memset(tmp->pointer, 0, size);
                     return tmp->pointer;
                 }
             }
