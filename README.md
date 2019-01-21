@@ -1,4 +1,4 @@
-# CS162 Operating Systems ans System Programming Personnel
+# CS162 Operating Systems and System Programming Personnel
 my implementation of [cs162](https://cs162.eecs.berkeley.edu/) homework
 
 ## HW0 Executable
